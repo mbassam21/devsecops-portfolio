@@ -1,0 +1,16 @@
+# Secrets & state — never commit
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+.env
+.env.*
+*.pem
+*.key
+id_ed25519*
+*.kubeconfig
+kubeconfig
+credentials
+# OS / editor noise
+.DS_Store
+*.swp
