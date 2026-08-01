@@ -12,3 +12,45 @@ Gaps/issues:
   - Optional/parked: WSL networking mode + Passbolt exposure note on MAIN box (attack-surface completeness, CC7.1).
   - Day-1 interview questions awaiting answers.
 Next: Day 2 — Users, groups, permissions (chmod/chown, umask, setuid/setgid/sticky, sudoers). Thread: least privilege at the OS layer (CC6.1).
+
+PROGRESS SNAPSHOT — Day 2 (2026-07-31)
+Status: complete
+Shipped:
+  - Multi-user shared-directory lab: users alice+bob, group engineering, dir 3770 (setgid+sticky) + default ACL
+  - PROVEN controls (terminal evidence): setgid group-inheritance ✓ ; sticky delete-protection (bob denied rm, file survived) ✓ ; group-write collaboration (bob edits alice's file) ✓
+  - Scoped sudo: /etc/sudoers.d/bob-cron (440, visudo-validated), NOPASSWD on ONE command. PROVEN: restart cron ALLOWED; stop cron DENIED; cat /etc/shadow DENIED → CC6.1 admin-layer least privilege
+  - Artifact: phase-1-systems-ops/day-02-permissions.md committed + pushed (commit ebde7f6)
+  - Environment fix: enabled systemd in WSL2 via [boot] systemd=true in /etc/wsl.conf (was falling back to init shim)
+Key lessons banked:
+  - '>' truncates+recreates files at umask default, silently dropping an earlier chmod → per-file chmod is fragile; default ACLs (or 002 umask) are the durable fix. (The real root cause of the multi-session "group-writable file that wasn't" anomaly — NOT a filesystem bug.)
+  - Debugging discipline: instrument (id / getfacl -n / lsattr) + minimal reproduction + read errors BY LAYER (authorization vs execution; permission-bits vs filesystem). When ROOT is denied a basic op, cause is below permissions.
+Gaps/issues:
+  - Day-2 interview questions (3) awaiting answers — grade at start of Day 3.
+  - Optional doc polish: add authorization-vs-execution + WSL systemd-conf notes to war-story section (2 lines provided).
+  - PARKED (from Day 1): AWS account is FREE plan → upgrade to Paid + set $50 Budgets alarm before Day 13.
+  - PARKED (from Day 1): WSL networking mode + Passbolt exposure note on MAIN box (attack-surface completeness, CC7.1) — optional.
+Next: Day 3 — Processes, systemd, packages (units, targets, timers vs cron, journalctl; apt/GPG signing). Thread: why services never run as root; package integrity. NOTE: you've already met how systemd fails ('Host is down' / init shim) — walk in with that context.
+
+PROGRESS SNAPSHOT — Day 3 (2026-08-02)
+Status: complete
+Shipped:
+  - Dedicated non-root system user `healthmon` (uid 999, nologin, no home)
+  - health-check.sh (root-owned 755 — service can run, can't modify its own code)
+  - healthmon.service — Type=oneshot, User=healthmon, full hardening block
+  - healthmon.timer — OnBootSec/OnUnitActiveSec=10min, Persistent=true, enabled at boot; confirmed in list-timers, fired successfully
+  - HARDENING BEFORE/AFTER: systemd-analyze security 8.3 EXPOSED → 1.9 OK, function preserved (PrivateNetwork, empty CapabilityBoundingSet, SystemCallFilter=@system-service, RestrictSUIDSGID, +more)
+  - Verified modern per-repo GPG key model (/etc/apt/keyrings/docker.asc, signed-by=); apt-key correctly deprecated/empty
+  - Artifact: day-03-services.md + day-03-units/ (service, timer, script) — commit pending confirmation
+Key concepts banked:
+  - "What user is this process running as?" as the core security question; root process count = attack surface
+  - oneshot ending inactive(dead) = success, not failure
+  - systemd hardening = exploit containment even WITHOUT a shell (NoNewPrivileges kills setuid escalation; PrivateNetwork blocks pivot; seccomp allowlist shrinks kernel surface)
+  - timers > cron for logging, missed-run catch-up, sandboxing, auditability (Git-tracked unit files vs hideable crontabs)
+  - GPG signature verification = supply-chain integrity; per-repo keys > global apt-key
+Gaps/issues:
+  - Day-3 interview questions (3) DEFERRED to start of Day 4 (late-night stop — clean recall signal preferred).
+  - Day-2 interview questions were already graded (~63%): recurring pattern = correct conclusion, verify the MECHANISM. Keep adding the "because."
+  - Optional: add UMask=0077 to unit for 1.9→1.8 (cosmetic; service writes nothing).
+  - PARKED (Day 1): AWS FREE plan → upgrade to Paid + $50 Budgets alarm before Day 13.
+  - PARKED (Day 1): WSL networking mode + Passbolt exposure note on MAIN box (CC7.1, optional).
+Next: Day 4 — Bash I (variables, quoting, conditionals, loops, functions, exit codes, set -euo pipefail, shellcheck). Thread: unsafe scripts as an attack vector. START WITH: 3 deferred Day-3 interview questions.

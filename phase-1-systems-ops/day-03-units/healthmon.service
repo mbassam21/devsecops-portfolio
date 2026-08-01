@@ -1,0 +1,29 @@
+[Unit]
+Description=Server health snapshot
+Documentation=https://github.com/mbassam21/devsecops-portfolio
+After=network.target
+
+[Service]
+Type=oneshot
+User=healthmon
+Group=healthmon
+ExecStart=/opt/healthmon/health-check.sh
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+RestrictNamespaces=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# --- hardening: shrink what a compromised service can reach ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/healthmon

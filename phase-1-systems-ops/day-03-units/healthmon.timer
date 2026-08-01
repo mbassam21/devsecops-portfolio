@@ -1,0 +1,11 @@
+[Unit]
+Description=Run health snapshot periodically
+Documentation=https://github.com/mbassam21/devsecops-portfolio
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
