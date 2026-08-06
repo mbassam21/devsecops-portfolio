@@ -11,6 +11,7 @@
 Listening sockets on `devsecops90` (from `sudo ss -tulnp`):
 - 127.0.0.1 / ::1 only: systemd-resolve (53), chronyd (323), VS Code server (39443)
 - No wildcard (0.0.0.0 / ::) binds — no externally reachable services.
+- WSL-DNS binds on 10.255.255.254:53
 
 Netid     State      Recv-Q     Send-Q           Local Address:Port            Peer Address:Port     Process                                                                                              
 udp       UNCONN     0          0                   127.0.0.54:53                   0.0.0.0:*         users:(("systemd-resolve",pid=81,fd=18))                                                            
