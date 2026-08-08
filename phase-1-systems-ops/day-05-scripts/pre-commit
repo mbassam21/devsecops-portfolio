@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not found — refusing to commit unscanned" >&2
+  exit 1
+fi
+
+if ! git diff --cached | gitleaks stdin --verbose; then
+  echo "" >&2
+  echo "COMMIT BLOCKED: potential secret detected in staged changes." >&2
+  echo "Remove the secret, or if it's a false positive, review carefully first." >&2
+  exit 1
+fi

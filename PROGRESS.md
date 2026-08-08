@@ -54,3 +54,24 @@ Gaps/issues:
   - PARKED (Day 1): AWS FREE plan → upgrade to Paid + $50 Budgets alarm before Day 13.
   - PARKED (Day 1): WSL networking mode + Passbolt exposure note on MAIN box (CC7.1, optional).
 Next: Day 4 — Bash I (variables, quoting, conditionals, loops, functions, exit codes, set -euo pipefail, shellcheck). Thread: unsafe scripts as an attack vector. START WITH: 3 deferred Day-3 interview questions.
+
+PROGRESS SNAPSHOT — Day 4 (2026-08-06)
+Status: complete
+Shipped:
+  - safe-cleanup.sh — hardened refactor of a deliberately unsafe script; shellcheck-clean; behavior-verified on good input (archived "weird name.log" w/ space), empty arg (refused via ${1:?}), bad dir ([[ -d ]] rejected)
+  - parse-log.sh — guarded log parser; surfaced brute-force (10.0.0.5, 5×401 POST /login) + path-traversal (203.0.113.7, /../../etc/passwd) from sample log
+  - unsafe-cleanup.sh kept as contrast artifact
+  - day-04-bash.md + day-04-scripts/ (4 files) — commit pending confirmation
+Concepts banked (mechanism-level):
+  - Three distinct bug classes / three fixes: quoting (spaces+globbing) vs set -u (unset) vs ${var:?} (empty) — none substitutes for another
+  - set -euo pipefail decoded incl. set -e's if/&&/|| gotcha and pipefail's silent-failure fix (verified exit 0→1)
+  - "cmd" = text, $(cmd) = runs it; echo never executes its contents (learned via 3 real failures)
+  - $1 in single quotes → bash leaves it (awk field) vs double/bare → bash expands
+  - bash script.sh needs r; ./script.sh needs r+x (kernel reads shebang) — chmod +x both scripts
+  - CRITICAL META-LESSON: shellcheck (grammar) passing ≠ logic correct. Verify BEHAVIOR on good/empty/bad input.
+Coaching thread (recurring): pattern-matching to surface vs tracing mechanism — same gap as interview answers. Improving; today drilled it hard in-terminal. Keep adding the "because."
+Gaps/issues:
+  - Day-4 interview questions (3) awaiting answers — grade next session.
+  - PARKED (Day 1): AWS FREE plan → upgrade to Paid + $50 Budgets alarm before Day 13.
+  - PARKED (Day 1): WSL networking mode + Passbolt exposure note on MAIN box (CC7.1, optional).
+Next: Day 5 — Bash II + automation (grep/awk/sed/jq, getopts, cron; INSTALL gitleaks pre-commit hook). Ship: production backup.sh w/ rotation+logging+failure alerting + cron entry + gitleaks hook. Thread: auditing crontabs, malicious persistence.

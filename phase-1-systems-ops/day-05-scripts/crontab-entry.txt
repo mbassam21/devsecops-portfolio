@@ -1,0 +1,1 @@
+0 2 * * * /usr/bin/env bash /home/bassam/bash-lab/backup.sh /home/bassam/bash-lab/testlogs >> /tmp/backups/cron.log 2>&1
