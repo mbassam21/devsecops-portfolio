@@ -45,6 +45,49 @@ capability.
   `ERROR: backup FAILED at line 31` and exited non-zero.
   *An alerting path you have never seen fire is a path you do not know works.*
 
+### Restore drill — recoverability proven (A1.2)
+
+A backup is not proven until you have restored from it. Verification (`tar tzf`)
+confirms the archive is *readable*; only a restore confirms it is *complete and
+correct*.
+
+```bash
+mkdir -p /tmp/restore-test && cd /tmp/restore-test
+tar xzf "$(ls -1t /tmp/backups/backup-*.tar.gz | head -1)"   # newest archive
+ls -la
+diff -r /tmp/restore-test ~/bash-lab/testlogs && echo "RESTORE VERIFIED: identical"
+```
+
+Result:
+-rw-r--r-- 1 bassam bassam 0 Aug 6 14:18 app.log
+-rw-r--r-- 1 bassam bassam 0 Aug 6 14:18 db.log
+-rw-r--r-- 1 bassam bassam 0 Aug 6 14:18 'weird name.log'
+
+RESTORE VERIFIED: identical
+
+`diff -r` performs a recursive comparison of restored content against the source
+and exits 0 only on an exact match. Note that `weird name.log` — the
+space-containing filename that breaks naïve scripts — survived archive and
+restore intact, confirming the quoting discipline holds end-to-end.
+
+### The backup assurance ladder
+Four distinct claims, commonly conflated. Auditors ask about the last one.
+
+| Claim | Evidence produced |
+|---|---|
+| **Scheduled** | crontab entry + `systemctl list-timers` |
+| **Executed** | `backup.log` — timestamped per-run start/created/size/success |
+| **Integrity** | `tar tzf` verification inside the script, every run |
+| **Failure is detected** | `trap ERR` deliberately fired → `ERROR: backup FAILED at line 31` |
+| **Recoverable** | this restore drill — `diff -r` returns identical |
+
+**Note**: diff -r compares content only; ownership/permission preservation was not verified in this drill
+
+*Scheduling evidence ≠ execution evidence ≠ integrity evidence ≠ recoverability
+evidence.* A timer firing on schedule proves the script ran; it proves nothing
+about whether the archive would restore. This is exactly how organisations end up
+with months of silently-empty backups discovered only during an incident.
+
 ### Judgment call recorded
 shellcheck raised SC2012 (info) on `ls`-based rotation. Chose to **fix with
 `find`** rather than suppress. Knowing when to fix a finding versus document a

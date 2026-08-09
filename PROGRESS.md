@@ -75,3 +75,46 @@ Gaps/issues:
   - PARKED (Day 1): AWS FREE plan → upgrade to Paid + $50 Budgets alarm before Day 13.
   - PARKED (Day 1): WSL networking mode + Passbolt exposure note on MAIN box (CC7.1, optional).
 Next: Day 5 — Bash II + automation (grep/awk/sed/jq, getopts, cron; INSTALL gitleaks pre-commit hook). Ship: production backup.sh w/ rotation+logging+failure alerting + cron entry + gitleaks hook. Thread: auditing crontabs, malicious persistence.
+
+PROGRESS SNAPSHOT — Day 5 (2026-08-08)
+Status: complete
+Shipped:
+  - backup.sh — production: guards, timestamped archives, log() w/ tee, trap ERR (TESTED, fired at line 31), tar tzf verification, find-based rotation. Evidence: 15 runs → exactly 5 retained.
+  - gitleaks v8.30.1 installed with sha256 verification (551f6fc8…2470eb, confirmed vs release page)
+  - .git/hooks/pre-commit — fail-closed secrets gate. PROVEN: blocked commit with 2 findings (private-key entropy 4.86, github-pat 4.77)
+  - Repo history scanned clean: gitleaks git . → 4 commits, no leaks
+  - Cron job installed + VERIFIED RUNNING UNDER CRON (cron.log full cycle), not just in shell
+  - Full scheduled-execution audit: crontabs (user/root/system), /etc/cron.{d,hourly,daily,weekly,monthly}, /var/spool/cron/crontabs, systemd timers — all attributable, clean
+  - day-05-automation.md + day-05-scripts/ (backup.sh, pre-commit, crontab-entry.txt)
+Key lessons banked:
+  - SCANNER LIMITS: gitleaks missed a raw AWS secret key (40 base64 chars = indistinguishable from hashes) — detects prefixed secrets only (AKIA/ghp_/xoxb-/BEGIN KEY). Every detector trades sensitivity vs false positives; know what yours MISSES.
+  - Local hooks = convenience, not enforcement (not versioned, --no-verify bypasses) → CI-side scanning required (Phase 4)
+  - Fail-closed control design (missing dependency must BLOCK, not pass)
+  - Cron env trap: no profile loaded, minimal PATH → absolute paths; security variant = PATH hijacking (same root cause)
+  - Day-2 callback in production: /var/spool/cron/crontabs is drwx-wx--T (1730) — setgid-style least privilege + sticky delete-protection, exactly the pattern built by hand
+  - Backup assurance ladder: scheduling ≠ execution ≠ integrity ≠ RECOVERABILITY. Only a restore test proves the last.
+Gaps/issues:
+  - RESTORE DRILL not yet done (extract + diff -r vs source) — the missing piece of A1.2 evidence. 10-min task, commands provided.
+  - Fix `set -eou pipefail` → `set -euo pipefail` in backup.sh
+  - Day-5 interview ~60%. STANDING COACHING FOCUS through Checkpoint 1: answer ALL parts of the question, and check you're addressing the claim actually tested (Q2 missed the security variant; Q3 answered "did it run" instead of "does it work").
+  - PARKED: AWS FREE plan → upgrade to Paid + $50 Budgets alarm before Day 13
+Next: Day 6 — Consolidation 1. Recall drills Days 1–5, timed broken-server triage (service down / disk full / wrong permissions), portfolio review + FIRST RESUME BULLETS while work is fresh.
+
+PROGRESS SNAPSHOT — Day 6 (2026-08-09)
+Status: complete
+Shipped:
+  - Recall drill Days 1–5: 71% (below 80% bar — see re-drill list)
+  - Timed triage (run untimed/guided; method taught mid-session): 3/3 faults diagnosed, fixed, VERIFIED
+      • webapp.service 203/EXEC → missing execute bit; fixed + verified running w/ heartbeats
+      • /srv/appdata 100% full → identified as null-byte file via `file`/`xxd` (NOT a real log), lsof clean, truncated; 0% verified
+      • /srv/reports 700 root:root → rebuilt as 3770 analysts + default ACL; PAIRED tests: alice (member) writes ✓, bob (non-member) denied ✓
+  - Repo README.md (first-impression artifact, selected-work table with control mappings)
+  - resume-bullets-day06.md — 8 bullets tagged to target roles, each with an interview-defence line
+Key methods banked:
+  - 4-step debugging: observe → read the error → localize → fix ONE thing + verify
+  - Real-incident additions: Step 0 "what changed?" (dpkg.log, journalctl -p err, deploy history) + broaden-before-narrow sweep (systemctl --failed, df -h, free -h, uptime, journalctl -p err)
+  - systemd exit codes: 203/EXEC = can't execute ExecStart target (vs program ran and failed)
+  - `file` says "data" not "ASCII text" → binary, nothing to archive
+  - lsof BEFORE deleting large files; deleted-but-held-open ≠ space freed → truncate -s 0
+  - df -i for inode exhaustion (disk "full" with free space)
+  - Ticket closed ≠ incident closed: fix the cause (rotation), not just the symptom
