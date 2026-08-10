@@ -118,3 +118,21 @@ Key methods banked:
   - lsof BEFORE deleting large files; deleted-but-held-open ≠ space freed → truncate -s 0
   - df -i for inode exhaustion (disk "full" with free space)
   - Ticket closed ≠ incident closed: fix the cause (rotation), not just the symptom
+
+  PROGRESS SNAPSHOT — Day 7 (2026-08-10)
+Status: complete
+Shipped:
+  - CIDR worksheet, 14 questions: 11/14 first pass, 14/14 after corrections. Includes /22 and /20 (host bits spilling into third octet), reverse-sizing (N hosts → prefix), forward subnetting (/24 → 4× /26), and AWS's 5-address reservation (=251 usable in a /24).
+  - Live tcpdump capture on loopback: password visible in plaintext query string; Authorization: Basic decoded with `base64 -d` to prove encoding ≠ encryption
+  - Own-host network inventory: eth0 172.27.177.60/20, gateway 172.27.176.1, resolver 10.255.255.254, ARP table
+  - SUMMARY.md — cumulative command reference + concepts, Days 1–7 (append each day going forward)
+Concepts banked:
+  - CIDR by derivation not memorization: host bits = 32−prefix; block size = 2^host bits; find the block CONTAINING the address
+  - Split into N subnets = borrow log₂(N) bits; need N hosts = smallest 2^h ≥ N+2
+  - lo is never the real network path; gateway ≠ resolver
+  - ARP has no authentication → ARP spoofing = MITM with no exploit required
+  - Base64 = encoding, not encryption; query-string creds leak more widely (logs, history, Referer) but neither is protected
+  - TLS hides payload, not metadata: IPs, ports, SNI hostname, DNS, cert, traffic analysis all remain visible
+  - python3 -m http.server serves CWD — exposed .git/ = full source history recoverable
+
+Next: Day 8 — Networking II (DNS resolution path and record types, HTTP semantics, TLS handshake, certificates and chains). Lab: dig +trace, openssl s_client on a live handshake, build a tiny self-signed CA. Thread: TLS misconfiguration failure modes.
