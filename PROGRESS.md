@@ -136,3 +136,22 @@ Concepts banked:
   - python3 -m http.server serves CWD — exposed .git/ = full source history recoverable
 
 Next: Day 8 — Networking II (DNS resolution path and record types, HTTP semantics, TLS handshake, certificates and chains). Lab: dig +trace, openssl s_client on a live handshake, build a tiny self-signed CA. Thread: TLS misconfiguration failure modes.
+
+PROGRESS SNAPSHOT — Day 8 (2026-08-11)
+Status: complete
+Shipped:
+  - DNS hierarchy walked manually (root → .com TLD → Cloudflare authoritative NS) after WSL2 blocked dig +trace
+  - Live TLS chain analysis: 4-cert chain traced leaf→root; SAN inspected; 121 trusted root CAs enumerated
+  - PROVEN: chain validation ≠ hostname validation (0 ok without -verify_hostname; 62 mismatch with it)
+  - Private CA built end to end: self-signed root (subject==issuer), server CSR, signed cert with SAN extension
+  - Trust model demonstrated: same cert → 21 (unable to verify) vs 0 (ok) with -CAfile; curl alert 46 on reject
+  - day-08-networking-tls.md + day-08-ca-lab/ (public certs only) + SUMMARY.md Day-8 append
+Concepts banked:
+  - DNS is a security control: control resolution and TLS faithfully encrypts to the ATTACKER's server
+  - TTL = how long a poisoned/stale record survives after the fix; lower TTLs BEFORE planned changes
+  - Trust is not scoped: any of 121 CAs can issue for any domain → CAA records narrow it (same principle as per-repo GPG keys)
+  - Wildcards match exactly one label
+  - Old TLS versions = downgrade surface; removal is the only fix
+  - Root CA self-signs; trust comes from being INSTALLED, not verified → also how corporate TLS interception works
+
+Next: Day 9 — Nginx I (server blocks, reverse proxying, TLS termination). Lab: proxy an app over TLS with security headers (CSP, HSTS), server tokens hidden. Thread: the proxy as a security boundary. You'll reuse the CA you built today.

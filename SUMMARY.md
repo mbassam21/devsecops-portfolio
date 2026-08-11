@@ -267,3 +267,52 @@ Always append `>> /path/log 2>&1` — without it, output goes nowhere.
 - **TLS hides what you say, not who you say it to.** Still visible to an in-path attacker: source/destination IPs, ports, **SNI hostname** in the handshake, DNS lookups (unless DoH/DoT), certificate, and **traffic analysis** (timing, sizes, frequency). TLS protects payload, not metadata.
 - ARP spoofing + plaintext protocols together are the whole argument for TLS everywhere — and why "it's only internal traffic" is not a defence, since internal segments are exactly where ARP spoofing works.
 - **Operational caution learned:** `python3 -m http.server` serves the **current directory** — it exposed the entire repo including `.git/`. An exposed `.git` over HTTP lets an attacker reconstruct full source history and any committed secrets.
+
+DNS (added Day 8)
+Command	What it does	When you reach for it
+dig <name>	Full lookup: answer section, TTL, flags	Standard resolution check
+dig +short <name>	Answer only	Scripting, quick checks
+dig +noall +answer <name>	Just the answer records, clean	Readable output
+dig @1.1.1.1 <name>	Query a specific resolver	Comparing resolvers; bypassing a broken local one
+dig +trace <name>	Walk root → TLD → authoritative yourself	Seeing the delegation chain (blocked by WSL2's DNS proxy)
+dig NS <name>	Authoritative nameservers	Who controls the zone
+dig TXT <name>	TXT records	SPF/DKIM/verification — leaks vendor + mail infrastructure
+dig CAA <name>	Which CAs may issue for this domain	Checking CA scope restriction
+dig MX <name>	Mail servers	Mail routing
+dig -x <ip>	Reverse lookup (PTR)	IP → name
+
+Record types: A (IPv4) · AAAA (IPv6) · CNAME (alias — dangling CNAME = subdomain takeover) · NS (nameservers) · MX (mail) · TXT (SPF/DKIM/verification) · SOA (zone metadata) · CAA (which CAs may issue) · PTR (reverse).
+
+TLS / certificates (added Day 8)
+Command	What it does
+openssl s_client -connect host:443 -servername host	Open a TLS connection; -servername = SNI
+... -showcerts	Print every certificate in the chain
+... -CAfile ca.crt	Verify against a specific CA instead of the system store
+... -verify_hostname <name>	Enforce hostname matching (not done by default!)
+... -tls1_1 / -tls1	Probe whether old protocols are accepted
+openssl x509 -in cert -noout -subject -issuer -dates	Read a certificate's identity and validity window
+openssl x509 -in cert -noout -ext subjectAltName	The hostnames a cert is actually valid for
+openssl genrsa -out key.pem 4096	Generate a private key
+openssl req -x509 -new -nodes -key ca.key -days N -subj "/CN=..." -out ca.crt	Self-signed root CA
+openssl req -new -key server.key -out server.csr -subj "/CN=..."	Certificate Signing Request
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -extfile ext -out server.crt	Sign a CSR with your CA
+openssl s_server -accept 8443 -cert server.crt -key server.key -www	Run a test TLS server
+curl --cacert ca.crt https://host/	curl trusting a specific CA
+grep -c "BEGIN CERTIFICATE" /etc/ssl/certs/ca-certificates.crt	Count trusted root CAs
+
+Verify return codes: 0 = chain OK (says nothing about hostname) · 21 = unable to verify first certificate (CA unknown) · 62 = hostname mismatch.
+
+Day 8 — DNS, HTTP, TLS & certificates
+Resolution path: stub → recursive resolver → root → TLD → authoritative. Three referrals, four levels, one lookup — which is why caching exists.
+DNS is a security control, not plumbing. Control what a name resolves to and TLS still works perfectly — it encrypts faithfully to the attacker's server.
+TTL is a security parameter. A poisoned or stale record persists in caches worldwide for the full TTL after the fix; you cannot retroactively shorten a cached TTL. Lower TTLs before planned changes.
+Cross-resolver disagreement is a diagnostic signal: benign (geo/CDN/anycast) or serious (hijacking, poisoning, tampered resolver). Query the authoritative server to settle it.
+DNS enumeration is recon. NS + A records revealed hosting and CDN; TXT records expose mail infrastructure and SaaS vendors.
+Certificate chain: each cert's issuer = the next cert's subject, walked upward until a certificate already in the local trust store is reached.
+121 root CAs are trusted by this machine to vouch for any domain. Trust is not scoped — one compromised CA breaks everything (DigiNotar 2011). CAA records narrow it. Same scope of trust principle as per-repo GPG keys.
+SAN, not CN. Wildcards match exactly one label: *.example.org covers wrong.example.org but not a.b.example.org and not bare example.org.
+Chain validation ≠ hostname validation. Verify return code: 0 (ok) means only that the signature chain is sound. Apps that skip hostname checking accept any valid cert from any CA → MITM with a legitimate certificate. A recurring, expensive, silent bug class.
+Old protocol versions are a downgrade surface. A server accepting TLS 1.0/1.1 lets an attacker force the weakest mutually-supported version regardless of client preference. Removal is the only fix.
+Root CA = self-signed: subject and issuer identical. Trust comes from being installed, not from being verified.
+The trust model in two commands: same certificate → 21 (unable to verify) without the CA, 0 (ok) with -CAfile ca.crt. This is also exactly how corporate TLS interception works.
+Environment finding: WSL2's DNS proxy times out on iterative queries (dig +trace, even with +tcp) while recursive lookups succeed. Use dig @<public-resolver>.
