@@ -268,51 +268,98 @@ Always append `>> /path/log 2>&1` — without it, output goes nowhere.
 - ARP spoofing + plaintext protocols together are the whole argument for TLS everywhere — and why "it's only internal traffic" is not a defence, since internal segments are exactly where ARP spoofing works.
 - **Operational caution learned:** `python3 -m http.server` serves the **current directory** — it exposed the entire repo including `.git/`. An exposed `.git` over HTTP lets an attacker reconstruct full source history and any committed secrets.
 
-DNS (added Day 8)
-Command	What it does	When you reach for it
-dig <name>	Full lookup: answer section, TTL, flags	Standard resolution check
-dig +short <name>	Answer only	Scripting, quick checks
-dig +noall +answer <name>	Just the answer records, clean	Readable output
-dig @1.1.1.1 <name>	Query a specific resolver	Comparing resolvers; bypassing a broken local one
-dig +trace <name>	Walk root → TLD → authoritative yourself	Seeing the delegation chain (blocked by WSL2's DNS proxy)
-dig NS <name>	Authoritative nameservers	Who controls the zone
-dig TXT <name>	TXT records	SPF/DKIM/verification — leaks vendor + mail infrastructure
-dig CAA <name>	Which CAs may issue for this domain	Checking CA scope restriction
-dig MX <name>	Mail servers	Mail routing
-dig -x <ip>	Reverse lookup (PTR)	IP → name
+---
 
-Record types: A (IPv4) · AAAA (IPv6) · CNAME (alias — dangling CNAME = subdomain takeover) · NS (nameservers) · MX (mail) · TXT (SPF/DKIM/verification) · SOA (zone metadata) · CAA (which CAs may issue) · PTR (reverse).
+## DNS (added Day 8)
 
-TLS / certificates (added Day 8)
-Command	What it does
-openssl s_client -connect host:443 -servername host	Open a TLS connection; -servername = SNI
-... -showcerts	Print every certificate in the chain
-... -CAfile ca.crt	Verify against a specific CA instead of the system store
-... -verify_hostname <name>	Enforce hostname matching (not done by default!)
-... -tls1_1 / -tls1	Probe whether old protocols are accepted
-openssl x509 -in cert -noout -subject -issuer -dates	Read a certificate's identity and validity window
-openssl x509 -in cert -noout -ext subjectAltName	The hostnames a cert is actually valid for
-openssl genrsa -out key.pem 4096	Generate a private key
-openssl req -x509 -new -nodes -key ca.key -days N -subj "/CN=..." -out ca.crt	Self-signed root CA
-openssl req -new -key server.key -out server.csr -subj "/CN=..."	Certificate Signing Request
-openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -extfile ext -out server.crt	Sign a CSR with your CA
-openssl s_server -accept 8443 -cert server.crt -key server.key -www	Run a test TLS server
-curl --cacert ca.crt https://host/	curl trusting a specific CA
-grep -c "BEGIN CERTIFICATE" /etc/ssl/certs/ca-certificates.crt	Count trusted root CAs
+| Command | What it does | When you reach for it |
+|---|---|---|
+| `dig <name>` | Full lookup: answer section, TTL, flags | Standard resolution check |
+| `dig +short <name>` | Answer only | Scripting, quick checks |
+| `dig @1.1.1.1 <name>` | Query a **specific** resolver | Comparing resolvers; bypassing a broken local one |
+| `dig +trace <name>` | Walk root to TLD to authoritative yourself | Delegation chain (blocked by WSL2 DNS proxy) |
+| `dig NS <name>` | Authoritative nameservers | Who controls the zone |
+| `dig TXT <name>` | TXT records | SPF/DKIM/verification — leaks infrastructure |
+| `dig CAA <name>` | Which CAs may issue for this domain | Checking CA scope restriction |
+| `dig -x <ip>` | Reverse lookup (PTR) | IP to name |
 
-Verify return codes: 0 = chain OK (says nothing about hostname) · 21 = unable to verify first certificate (CA unknown) · 62 = hostname mismatch.
+**Record types:** A (IPv4), AAAA (IPv6), CNAME (alias — *dangling CNAME = subdomain takeover*), NS, MX, TXT, SOA, **CAA**, PTR.
 
-Day 8 — DNS, HTTP, TLS & certificates
-Resolution path: stub → recursive resolver → root → TLD → authoritative. Three referrals, four levels, one lookup — which is why caching exists.
-DNS is a security control, not plumbing. Control what a name resolves to and TLS still works perfectly — it encrypts faithfully to the attacker's server.
-TTL is a security parameter. A poisoned or stale record persists in caches worldwide for the full TTL after the fix; you cannot retroactively shorten a cached TTL. Lower TTLs before planned changes.
-Cross-resolver disagreement is a diagnostic signal: benign (geo/CDN/anycast) or serious (hijacking, poisoning, tampered resolver). Query the authoritative server to settle it.
-DNS enumeration is recon. NS + A records revealed hosting and CDN; TXT records expose mail infrastructure and SaaS vendors.
-Certificate chain: each cert's issuer = the next cert's subject, walked upward until a certificate already in the local trust store is reached.
-121 root CAs are trusted by this machine to vouch for any domain. Trust is not scoped — one compromised CA breaks everything (DigiNotar 2011). CAA records narrow it. Same scope of trust principle as per-repo GPG keys.
-SAN, not CN. Wildcards match exactly one label: *.example.org covers wrong.example.org but not a.b.example.org and not bare example.org.
-Chain validation ≠ hostname validation. Verify return code: 0 (ok) means only that the signature chain is sound. Apps that skip hostname checking accept any valid cert from any CA → MITM with a legitimate certificate. A recurring, expensive, silent bug class.
-Old protocol versions are a downgrade surface. A server accepting TLS 1.0/1.1 lets an attacker force the weakest mutually-supported version regardless of client preference. Removal is the only fix.
-Root CA = self-signed: subject and issuer identical. Trust comes from being installed, not from being verified.
-The trust model in two commands: same certificate → 21 (unable to verify) without the CA, 0 (ok) with -CAfile ca.crt. This is also exactly how corporate TLS interception works.
-Environment finding: WSL2's DNS proxy times out on iterative queries (dig +trace, even with +tcp) while recursive lookups succeed. Use dig @<public-resolver>.
+## TLS / certificates (added Day 8)
+
+| Command | What it does |
+|---|---|
+| `openssl s_client -connect host:443 -servername host` | Open TLS connection; `-servername` = SNI |
+| `... -showcerts` | Print every certificate in the chain |
+| `... -CAfile ca.crt` | Verify against a specific CA |
+| `... -verify_hostname <name>` | **Enforce hostname matching** (not default) |
+| `... -tls1_1` | Probe whether old protocols are accepted |
+| `openssl x509 -in cert -noout -subject -issuer -dates` | Certificate identity and validity |
+| `openssl x509 -in cert -noout -ext subjectAltName` | Hostnames the cert is valid for |
+| `openssl genrsa -out key.pem 4096` | Generate a private key |
+| `openssl req -x509 -new -nodes -key ca.key -days N -out ca.crt` | Self-signed root CA |
+| `openssl req -new -key server.key -out server.csr` | Certificate Signing Request |
+| `openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -extfile ext -out server.crt` | Sign a CSR |
+| `openssl s_server -accept 8443 -cert server.crt -key server.key -www` | Test TLS server |
+| `curl --cacert ca.crt https://host/` | curl trusting a specific CA |
+
+**Verify return codes:** `0` = chain OK (says nothing about hostname), `21` = CA unknown, `62` = hostname mismatch.
+
+## Day 8 — DNS, HTTP, TLS and certificates
+
+- **Resolution path:** stub, recursive resolver, root, TLD, authoritative. Three referrals for one lookup — which is why caching exists.
+- **DNS is a security control.** Control what a name resolves to and TLS still works perfectly — it encrypts faithfully to the attacker's server.
+- **TTL is a security parameter.** A poisoned record persists in caches for the full TTL *after* the fix. Lower TTLs before planned changes.
+- **Cross-resolver disagreement** is diagnostic: benign (geo/CDN/anycast) or serious (hijacking, poisoning). Query the authoritative server to settle it.
+- **DNS enumeration is recon.** NS and A records revealed hosting and CDN; TXT records expose mail infrastructure and SaaS vendors.
+- **Certificate chain:** each cert's issuer equals the next cert's subject, walked upward to a certificate already in the trust store.
+- **121 root CAs** are trusted to vouch for *any* domain. Trust is not scoped — one compromised CA breaks everything (DigiNotar 2011). CAA records narrow it.
+- **SAN, not CN.** Wildcards match exactly one label.
+- **Chain validation is not hostname validation.** Apps that skip hostname checking accept any valid cert from any CA — MITM with a legitimate certificate.
+- **Old protocol versions are a downgrade surface.** Removal is the only fix.
+- **Root CA is self-signed:** subject and issuer identical. Trust comes from being *installed*, not verified.
+- **The trust model in two commands:** same cert gives `21` without the CA, `0` with `-CAfile`. Also exactly how corporate TLS interception works.
+
+---
+
+## Nginx (added Day 9)
+
+| Command | What it does | When you reach for it |
+|---|---|---|
+| `nginx -t` | Test config syntax without applying | **Always** before reload |
+| `systemctl reload nginx` | Re-read config, no dropped connections | Applying config changes |
+| `systemctl status nginx` | Running state + recent errors | First check on any nginx issue |
+| `ps -eo user,comm \| grep nginx` | Master vs worker users | Verifying privilege separation |
+| `curl -sI https://host/` | Response headers only | Checking security headers |
+| `curl --cacert ca.crt -sI https://host/` | Headers, trusting a specific CA | Testing a private-CA server |
+
+**Config layout:** `/etc/nginx/sites-available/` holds configs; `/etc/nginx/sites-enabled/` holds symlinks to the active ones. Enable with `ln -s`, disable with `rm` on the symlink.
+
+**Key directives:**
+
+| Directive | Purpose |
+|---|---|
+| `listen 8443 ssl` | Port + enable TLS |
+| `ssl_certificate` / `ssl_certificate_key` | Cert (644) and private key (600, root only) |
+| `ssl_protocols TLSv1.2 TLSv1.3` | Remove downgrade surface |
+| `server_tokens off` | Hide nginx version |
+| `proxy_pass http://127.0.0.1:3000` | Forward to backend |
+| `proxy_set_header X-Real-IP $remote_addr` | Give backend the true client IP |
+| `proxy_hide_header Server` | Strip the backend's version banner |
+| `add_header ... always` | Apply header to error responses too |
+| `return 301 https://$host$request_uri` | HTTP to HTTPS redirect |
+
+**Security headers:** `Strict-Transport-Security` (blocks SSL-stripping) · `X-Content-Type-Options: nosniff` (blocks content-type guessing) · `X-Frame-Options: DENY` (blocks clickjacking) · `Content-Security-Policy: default-src 'self'` (neuters most XSS) · `Referrer-Policy: no-referrer`.
+
+## Day 9 — Nginx I: reverse proxy and TLS termination
+
+- **Three jobs, not three products.** Web server (files from disk), reverse proxy (forwards to a backend), load balancer (multiple backends + health checks). Nginx does all three depending on config. *Forward* proxy sits in front of clients; *reverse* proxy sits in front of servers.
+- **nginx and Caddy are competitors** (front door). **Tomcat is a Java application server** — it *runs* application code, like Gunicorn or Node. Something runs your code; something else sits in front managing the outside world. Conflating them is a common interview tell.
+- **Why a reverse proxy:** backend leaves the network (loopback bind), TLS terminates once, policy applies uniformly, backends become swappable, static content never reaches the app.
+- **Privilege separation observed:** one root master (binds ports, reads the private key) and unprivileged workers handling network input. A compromised worker gets `www-data`, not root, and cannot read the key.
+- **Environment finding:** the two WSL2 instances **share a network namespace** — filesystem and process isolation hold, port isolation does not. A bind in one blocks the other. An empty Process column in `ss -tlnp` means the socket owner is outside this instance's namespace.
+- **`nginx -t` succeeding while `ExecStart` fails** distinguishes "config invalid" from "cannot acquire resources." Always test before reload.
+- **The padlock is not a safety indicator.** Installing a CA into the Windows trust store turned a rejected certificate into a clean padlock with nothing about the certificate changed. This is exactly how corporate TLS interception works — and how service meshes and CA-installing malware work. *The padlock means "signed by something this machine was told to trust."*
+- **`X-Forwarded-For` is client-supplied.** `$proxy_add_x_forwarded_for` **appends** to whatever the client sent, so an app reading the *first* value gets an attacker-chosen IP. Only trustworthy if every hop is a proxy you control. Read the last value, or overwrite with `$remote_addr`.
+- **What the proxy does NOT protect:** application-layer vulnerabilities (SQLi, authN, IDOR — the payload is forwarded faithfully), denial of service, and backend compromise. Transport security says nothing about application correctness.
+- **Plaintext proxy-to-backend** is acceptable over loopback on one host; it is a **finding** the moment the hop crosses a real network, because ARP spoofing makes internal segments observable. This is the argument for mTLS everywhere in service meshes.

@@ -1,0 +1,12 @@
+HTTP/2 200 
+server: nginx
+date: Wed, 12 Aug 2026 21:56:19 GMT
+content-type: text/html
+content-length: 68
+last-modified: Wed, 12 Aug 2026 20:05:50 GMT
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+content-security-policy: default-src 'self'
+referrer-policy: no-referrer
+

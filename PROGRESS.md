@@ -155,3 +155,24 @@ Concepts banked:
   - Root CA self-signs; trust comes from being INSTALLED, not verified → also how corporate TLS interception works
 
 Next: Day 9 — Nginx I (server blocks, reverse proxying, TLS termination). Lab: proxy an app over TLS with security headers (CSP, HSTS), server tokens hidden. Thread: the proxy as a security boundary. You'll reuse the CA you built today.
+
+PROGRESS SNAPSHOT — Day 9 (2026-08-12)
+Status: complete
+Shipped:
+  - nginx reverse proxy on 8443, TLS terminated with the Day-8 private CA, backend on 127.0.0.1:3000
+  - All 5 security headers verified (HSTS, nosniff, X-Frame-Options, CSP, Referrer-Policy); server_tokens off + proxy_hide_header Server → neither layer leaks a version; HTTP/8080 → 301
+  - HTTP/2 negotiated; cert 644 / key 600 root-only; privilege separation observed (root master + 16 www-data workers)
+  - CA installed into Windows trust store → clean padlock on the same previously-rejected certificate
+Concepts banked:
+  - Web server vs reverse proxy vs load balancer = three JOBS; nginx/Caddy are front doors, Tomcat is an application server
+  - THE PADLOCK IS NOT A SAFETY INDICATOR — it means "signed by something this machine was told to trust." Same mechanism as corporate TLS interception, service meshes, CA-installing malware.
+  - X-Forwarded-For is client-supplied and APPENDED to; only trustworthy if every hop is a proxy you control
+  - The proxy does NOT protect against app-layer vulns, DoS, or backend compromise
+  - Plaintext to backend: fine over loopback, a finding across any real network (ARP spoofing) → the mTLS argument
+  - nginx -t before every reload; ExecStartPre success + ExecStart failure = valid config, unavailable resource
+Environment finding:
+  - The two WSL2 instances SHARE A NETWORK NAMESPACE. Port isolation does not exist between them (nginx on the main box held :80). Empty Process column in ss -tlnp = owner outside this namespace. Lab moved to 8080/8443.
+Gaps/issues:
+  - OPEN: remove `Bassam Lab Root CA` from the Windows trust store at end of Phase 1 (certlm.msc). A live signing capability on the daily-driver machine.
+  - PARKED — 4 program days out: AWS FREE plan → upgrade to Paid + $50 Budgets alarm BEFORE Day 13.
+Next: Day 10 — Nginx II (load balancing: round robin / least connections, health checks, caching basics, rate limiting). Lab: two backends behind nginx, kill one and observe failover, add rate limiting. Thread: rate limiting as abuse defence.
