@@ -176,3 +176,25 @@ Gaps/issues:
   - OPEN: remove `Bassam Lab Root CA` from the Windows trust store at end of Phase 1 (certlm.msc). A live signing capability on the daily-driver machine.
   - PARKED — 4 program days out: AWS FREE plan → upgrade to Paid + $50 Budgets alarm BEFORE Day 13.
 Next: Day 10 — Nginx II (load balancing: round robin / least connections, health checks, caching basics, rate limiting). Lab: two backends behind nginx, kill one and observe failover, add rate limiting. Thread: rate limiting as abuse defence.
+
+PROGRESS SNAPSHOT — Day 10 (2026-08-14)
+Status: complete
+Shipped:
+  - Two backends behind nginx (upstream pool, max_fails=2 fail_timeout=10s, proxy_next_upstream)
+  - PROVEN failover: BACKEND-2 killed, requests continued returning 200; recovery after fail_timeout confirmed
+  - PROVEN rate limiting: 20-request burst → 200×7 then 429s with isolated 200s as the bucket refilled; recovered after 3s
+  - Algorithm comparison: least_conn pinned to one backend under sequential traffic (tie at zero connections); alternated under concurrency; round robin alternated sequentially
+  - X-Forwarded-For corrected to $remote_addr (overwrite, not append) — applying own Day-9 analysis
+  - day-10-nginx-lb.md + lab.conf + evidence traces + SUMMARY Day-10 append
+Concepts banked:
+  - Open-source nginx health checks are PASSIVE: the first user after a failure pays for the discovery
+  - Rate limiting is evaluated BEFORE proxy_pass (proven by absence of upstream errors in the log)
+  - Token bucket made visible: rate = refill speed, burst = depth, nodelay = serve immediately
+  - Rate limiting defends AVAILABILITY; per-IP so a botnet defeats it; volumetric floods need CDN/WAF/Shield
+  - TEST DESIGN: when two controls can each produce a non-200, the test cannot attribute the result
+  - Small-sample distribution noise ≠ a pattern
+Recall this session: Q1 9/10, Q2 8/10, Q3 8/10 (~83%) — first time at/above the checkpoint bar, and these were the questions deferred from Day 9 fatigue.
+Gaps/issues:
+  - OPEN: remove `Bassam Lab Root CA` from Windows trust store at end of Phase 1 (certlm.msc)
+  - PARKED — 3 program days out: AWS FREE plan → upgrade to Paid + $50 Budgets alarm BEFORE Day 13
+Next: Day 11 — Hardening (CIS Ubuntu subset, sshd hardening, UFW/iptables, fail2ban, auditd intro). Ship: hardening evidence pack with before/after audit output. Thread: the whole day — CC6.1/CC6.6/CC7.1. THEN Day 12: Agent 1 (MCP server health monitor) + Checkpoint 1.

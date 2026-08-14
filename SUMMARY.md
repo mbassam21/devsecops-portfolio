@@ -363,3 +363,45 @@ Always append `>> /path/log 2>&1` — without it, output goes nowhere.
 - **`X-Forwarded-For` is client-supplied.** `$proxy_add_x_forwarded_for` **appends** to whatever the client sent, so an app reading the *first* value gets an attacker-chosen IP. Only trustworthy if every hop is a proxy you control. Read the last value, or overwrite with `$remote_addr`.
 - **What the proxy does NOT protect:** application-layer vulnerabilities (SQLi, authN, IDOR — the payload is forwarded faithfully), denial of service, and backend compromise. Transport security says nothing about application correctness.
 - **Plaintext proxy-to-backend** is acceptable over loopback on one host; it is a **finding** the moment the hop crosses a real network, because ARP spoofing makes internal segments observable. This is the argument for mTLS everywhere in service meshes.
+
+---
+
+## Nginx load balancing and rate limiting (added Day 10)
+
+| Directive | What it does |
+|---|---|
+| `upstream <name> { server ...; }` | Define a pool of backends |
+| `least_conn;` | Route to fewest **active** connections |
+| `ip_hash;` | Same client IP to same backend (session stickiness) |
+| *(no directive)* | Default is round robin |
+| `max_fails=2 fail_timeout=10s` | Passive health check: N failures in T seconds marks a backend down for T |
+| `proxy_next_upstream error timeout http_502 http_503 http_504` | Retry a failed request on the next backend — makes failover invisible |
+| `proxy_connect_timeout 2s` | How long to wait for a backend connection |
+| `limit_req_zone $binary_remote_addr zone=NAME:10m rate=10r/s;` | Define a rate-limit zone (http context) |
+| `limit_req zone=NAME burst=5 nodelay;` | Apply the limit; burst = bucket depth, nodelay = serve immediately |
+| `limit_req_status 429;` | Return 429 instead of the default 503 |
+| `add_header X-Upstream $upstream_addr always;` | Show which backend served — **debug only** |
+
+**Testing commands:**
+
+| Command | Purpose |
+|---|---|
+| `for i in $(seq 6); do curl -s URL; done` | Sequential requests |
+| `for i in $(seq 10); do curl -s URL & done; wait` | **Concurrent** requests (needed to exercise least_conn) |
+| `curl -s -o /dev/null -w "%{http_code} " URL` | Print only the status code |
+| `sudo tail -20 /var/log/nginx/error.log` | Rate-limit and upstream-failure evidence |
+
+## Day 10 — Nginx II: load balancing, health checks, rate limiting
+
+- **`least_conn` does not distribute sequential traffic.** With serialised requests both backends always hold zero active connections, so it is a tie every time and nginx picks the first server. Proven: 12 sequential requests all hit BACKEND-1; the same traffic under round robin alternated cleanly, and concurrent traffic under `least_conn` also alternated. **The algorithm changes behaviour in ways only visible under the right traffic pattern.**
+- **Round robin is weighted and its counter carries across requests** — short samples will not alternate perfectly. Do not read a pattern into small-sample noise.
+- **Open-source nginx health checks are PASSIVE** — a backend is discovered dead by failing a real user's request. The first user after a failure pays for the discovery. Active probing is nginx Plus, or an external checker, or a service mesh.
+- **`proxy_next_upstream` is what makes failover invisible** — the request is retried on a live backend rather than returned as an error. Verified: 200s continued with a backend killed.
+- **nginx retries failed backends after `fail_timeout`** rather than blacklisting permanently. Verified on restart.
+- **Rate limiting is evaluated BEFORE `proxy_pass`** — a throttled request never reaches an upstream. Confirmed by the *absence* of connection-refused entries in the error log during a failover test. Cheap rejection precedes expensive work.
+- **Test-design lesson: when two controls can each produce a non-200, the test cannot attribute the result.** A failover test returned a 429 that was actually rate limiting.
+- **The token bucket, made visible:** 20 rapid requests gave seven 200s, then 429s, with isolated 200s scattered among them as the bucket refilled at ~1 token per 100 ms, then full recovery after 3 seconds. `rate` = refill speed, `burst` = bucket depth, `nodelay` = serve burst immediately. **Rate limiting is a continuously refilling allowance, not a binary gate.**
+- **Rate limiting defends AVAILABILITY** — the first such control in the programme. It blunts credential stuffing, scraping, API abuse, app-layer DoS: attacks made of individually valid requests in illegitimate volume.
+- **Its limits:** per-IP, so a botnet defeats it; and volumetric floods saturate bandwidth before nginx sees a packet (needs CDN/WAF/Shield). Tuning is a real tradeoff — too tight breaks users behind corporate NAT, too loose achieves nothing.
+- **`X-Forwarded-For` corrected:** use `$remote_addr` (overwrite) not `$proxy_add_x_forwarded_for` (append). Appending lets a client inject a forged first value and defeat per-IP rate limiting and IP allowlisting.
+- **`$binary_remote_addr` over `$remote_addr` in limit zones** — 4 bytes instead of a string; 10 MB holds roughly 160,000 IPs.
