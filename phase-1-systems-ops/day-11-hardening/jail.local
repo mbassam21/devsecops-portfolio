@@ -1,0 +1,18 @@
+[DEFAULT]
+bantime  = 600
+findtime = 60
+maxretry = 5
+backend  = auto
+
+[sshd]
+enabled = false
+# Disabled: no sshd in this WSL2 instance. Config retained as reference.
+
+[nginx-limit-req]
+enabled  = true
+port     = 8080,8443
+filter   = nginx-limit-req
+logpath  = /var/log/nginx/error.log
+maxretry = 10
+findtime = 60
+bantime  = 600

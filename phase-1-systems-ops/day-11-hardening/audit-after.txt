@@ -1,0 +1,15 @@
+=== CIS-subset audit: devsecops90 2026-08-15T20:31:55+02:00 ===
+[PASS] Firewall (ufw) is active
+[PASS] Default deny incoming policy
+[PASS] fail2ban service is running
+[PASS] No accounts with empty passwords
+[PASS] No world-writable files outside /tmp
+[PASS] No unowned SUID binaries in /home,/opt,/srv
+[PASS] /etc/shadow is 640 or stricter
+[PASS] /etc/passwd is not world-writable
+[PASS] Root is the only UID 0 account
+[PASS] sudo requires authentication (no global NOPASSWD:ALL)
+[PASS] nginx hides version (server_tokens off)
+[PASS] Automatic security updates configured
+---
+PASS: 12  FAIL: 0  SCORE: 100%

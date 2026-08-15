@@ -1,0 +1,54 @@
+# Hardened sshd_config — reference artifact
+# NOT OPERATIONAL in this WSL2 lab (no sshd installed). Directives justified below.
+
+Protocol 2
+
+# --- Authentication ---
+PermitRootLogin no
+# Root must never log in directly: forces named-user accountability (who did what),
+# and removes the single highest-value brute-force target.
+
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+# Keys only. Passwords are guessable, reusable, and phishable; a 4096-bit key is not.
+# This single directive eliminates credential-stuffing against SSH entirely.
+
+PermitEmptyPasswords no
+MaxAuthTries 3
+# Limits guesses per connection; forces reconnection, which fail2ban can observe.
+
+LoginGraceTime 30
+# Unauthenticated connections are cheap for an attacker to hold open. Close them fast.
+
+AllowUsers deploy admin
+# Explicit allowlist. Deny-by-default at the authentication layer.
+
+# --- Reduce attack surface ---
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+# Each forwarding feature is a pivot path. If a session is compromised, forwarding
+# lets the attacker reach systems the SSH host can see but they cannot.
+
+# --- Cryptography (modern algorithms only) ---
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+HostKeyAlgorithms ssh-ed25519,rsa-sha2-512
+# Same reasoning as removing TLS 1.0/1.1 (Day 8): a supported weak algorithm is
+# reachable by an attacker via downgrade, regardless of client preference.
+
+# --- Logging & session hygiene ---
+LogLevel VERBOSE
+# VERBOSE records key fingerprints on login — you can prove WHICH key authenticated.
+# Essential forensic evidence (CC7.2).
+
+ClientAliveInterval 300
+ClientAliveCountMax 2
+# Drops dead sessions after ~10 min: reclaims an unattended authenticated session.
+
+Banner /etc/issue.net
+# Legal notice. In many jurisdictions an unauthorized-access warning matters for
+# prosecution.

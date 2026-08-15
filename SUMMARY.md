@@ -405,3 +405,41 @@ Always append `>> /path/log 2>&1` — without it, output goes nowhere.
 - **Its limits:** per-IP, so a botnet defeats it; and volumetric floods saturate bandwidth before nginx sees a packet (needs CDN/WAF/Shield). Tuning is a real tradeoff — too tight breaks users behind corporate NAT, too loose achieves nothing.
 - **`X-Forwarded-For` corrected:** use `$remote_addr` (overwrite) not `$proxy_add_x_forwarded_for` (append). Appending lets a client inject a forged first value and defeat per-IP rate limiting and IP allowlisting.
 - **`$binary_remote_addr` over `$remote_addr` in limit zones** — 4 bytes instead of a string; 10 MB holds roughly 160,000 IPs.
+
+---
+
+## Hardening (added Day 11)
+
+| Command | What it does | When you reach for it |
+|---|---|---|
+| `sudo ufw default deny incoming` | Set default-deny inbound policy | Firewall baseline |
+| `sudo ufw allow 8443/tcp comment 'x'` | Explicit allow with a documented reason | Permit by exception |
+| `sudo ufw status verbose` | Full policy + rules | Evidence capture |
+| `sudo iptables -L ufw-user-input -n --line-numbers` | The rules UFW actually generated | Verifying what got applied |
+| `sudo fail2ban-client status` | List active jails | Confirming fail2ban config loaded |
+| `sudo fail2ban-client status <jail>` | Failures and bans for one jail | Checking a jail is matching |
+| `sudo fail2ban-client get <jail> ignoreip` | Which sources are exempt | Explaining why nothing got banned |
+| `sudo tail /var/log/fail2ban.log` | Detection and ban events | Evidence that the filter matched |
+| `sshd -t -f <file>` | Validate an sshd config WITHOUT applying it | Same discipline as `nginx -t` |
+| `sudo find / -xdev -type f -perm -4000` | Inventory SUID binaries | Privilege-escalation surface |
+| `sudo find / -xdev -type f -perm -0002` | World-writable files | Files an attacker can replace |
+| `sudo awk -F: '($2=="") {print $1}' /etc/shadow` | Accounts with no password | Always a finding |
+| `awk -F: '($3==0){print $1}' /etc/passwd` | UID 0 accounts | Should be root only |
+| `dpkg -S <path>` | Which package owns a file | **A SUID file no package owns is a finding** |
+| `stat -c %a <file>` | Numeric permission mode | Scriptable permission checks |
+
+**Key sshd directives:** `PermitRootLogin no` · `PasswordAuthentication no` + `PubkeyAuthentication yes` (eliminates SSH credential stuffing) · `MaxAuthTries 3` · `LoginGraceTime 30` · `AllowUsers <list>` · `X11Forwarding no` / `AllowAgentForwarding no` / `AllowTcpForwarding no` / `PermitTunnel no` (each is a pivot path) · modern `KexAlgorithms`/`Ciphers`/`MACs` only · `LogLevel VERBOSE` (records key fingerprints — proves WHICH key authenticated).
+
+**fail2ban structure:** filter (regex over a log) + jail (log, filter, thresholds) + action (firewall ban). `maxretry` failures within `findtime` triggers a ban for `bantime`.
+
+## Day 11 — Hardening
+
+- **The framing shift:** from "is this configured correctly" to **"what would an auditor or attacker find if they looked?"** Evidence pack = baseline, controls applied, re-measured, limitations stated.
+- **Deny by default, permit by exception** — the same principle as `3770` directories (other gets nothing) and `CapabilityBoundingSet=` (drop all, add nothing back). The most consistently correct posture available.
+- **An unowned SUID file in a home directory is a real finding.** The Day-2 lab artifact `demo-suid` was still present. Audit question: does it need root, is it audited, does a package own it? Use `dpkg -S` to attribute every SUID binary.
+- **fail2ban `ignoreself`** exempts local sources by default — the filter still matches and logs, but no ban occurs. Correct behaviour; banning yourself from your own server is a classic self-inflicted outage. Evidence statement: "filter proven functional, ban action correctly suppressed for local traffic."
+- **Defence in depth made concrete:** nginx returns 429s per request (cheap); fail2ban escalates repeat offenders to a network-level block so their packets never reach nginx at all.
+- **Label untested controls honestly.** The hardened sshd_config was syntax-validated but is not operational in this environment. Claiming an untested control works is the credibility gap to avoid.
+- **A 100% score on a checklist you wrote yourself is weak evidence.** It measures "does this host pass the tests I chose," not "is this host secure." A client should ask who picked the checks. State which checks genuinely flipped FAIL to PASS versus which were already true of the base image.
+- **Backgrounded processes do not survive their parent shell** — the Python backends died and nginx returned 502. This is why services belong in systemd units (Day 3).
+- **BLAST RADIUS — the day's most valuable lesson.** Chasing an out-of-scope finding (a port owned by another WSL instance) onto a machine outside the lab caused real collateral damage: `apt purge openssh-client` cascaded into removing snapd, ssh-import-id, xauth, fuse3, squashfs-tools and left dpkg in a permanently failing state. **The correct response to an out-of-scope finding is to document it, not to chase it onto a system you depend on.** This is precisely how production incidents happen.
