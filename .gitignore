@@ -3,6 +3,7 @@
 *.tfstate.*
 .terraform/
 *.tfvars
+.venv/
 .env
 .env.*
 *.pem

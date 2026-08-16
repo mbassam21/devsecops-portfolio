@@ -1,0 +1,45 @@
+Run a security audit of this host. For each failing check, explain what an
+  attacker could actually do with it, and rank the failures by which you would
+  fix first.
+⧉ Selected 1 lines from ../../devsecops-portfolio/SUMMARY.md in Visual Studio Code
+
+I'll load the health-monitor audit tool and run it against this host.
+
+Now running the audit.
+
+  Called health-monitor, ran 1 shell command
+  attacker could actually do with it, and rank the failures by which you would                                                     fix first.
+⧉ Selected 1 lines from ../../devsecops-portfolio/SUMMARY.md in Visual Studio Code                                            
+I'll load the health-monitor audit tool and run it against this host.                                                            
+Now running the audit.                                                                                                           
+  Called health-monitor, ran 1 shell command                                                                                       
+Audit result: 8/11 passed, 3 failed (all High severity)                                                                          
+Ran the CIS-subset audit against devsecops90. The 3 failures are all local privilege-escalation paths — nothing here is remotely exploitable on its own, but each one turns "I have a se root."
+
+Ranked by fix priority
+
+1. Rogue SUID root binary — /home/bassam/.cache/backup
+-rwsr-xr-x 1 root root  /home/bassam/.cache/backup-helper
+This binary runs as root regardless of who executes ite directory (not a package-managed location), and isn't owned by any installed package — meaning nobody is tracking or auditing what it does. Any local user — no sudo rights, no special account
+needed — can run ~/.cache/backup-helper directly and g the directory itself is writable by more than oneuser, an attacker doesn't even need the original binary to be dangerous: they can overwrite it with a shell-spawning payload and it stays
+SUID-root. This is the most broadly exploitable of thee least — just local execute access, which almostanyone on the box already has. Fix first: verify what it's for, then either remove it or strip the SUID bit and re-attribute it to a
+package.
+
+2. Blanket NOPASSWD:ALL sudoers rule — /etc/sudoers.d/
+This grants passwordless root for any command to whatever account it's scoped to (name suggests a deploy/automation user). The danger: it
+removes the re-authentication barrier entirely. If thatoken, or CI credential leaks — or if a web app /deploy script running as that user has an RCE bug — the attacker doesn't need to guess a password or catch a live sudo session; they get
+instant, silent root the moment they land a shell as tccounts are also disproportionately likely to bereachable from CI systems or scripts outside this host, which widens the realistic attack surface versus a purely-local account. Fix:
+replace with a scoped rule listing only the specific ctely needs.
+
+3. World-writable file owned by root — /opt/maintenanc
+-rw-rw-rw- 1 root root  /opt/maintenance.sh
+Any local user can overwrite this file's contents. It'omething runs it as root (cron job, systemd timer, oran admin manually running it with sudo) — at which point whatever an attacker wrote executes as root. I ranked this third because it's
+execution-dependent (an attacker has to know/wait for diately exploitable like the two above — but it shouldstill be fixed today: chmod o-w /opt/maintenance.sh, and check crontab -l / systemd timers to see if anything actually invokes it as root,
+which would tell you how "live" this hole really is.)
+
+What's already solid
+
+Firewall (ufw enabled, default-deny inbound), fail2banccounts, /etc/shadow correctly locked to 640, only oneUID 0 account, nginx version banner suppressed, and automatic security updates configured — all passing, no action needed.
+
+Caveat                                                                                                                              
+This is a CIS subset, not a full compliance sweep — a clean score means these 11 checks passed, not that the host is broadly secure (things like open ports, TLS config, kernel hardening,ren't covered here).

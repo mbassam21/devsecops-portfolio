@@ -198,3 +198,27 @@ Gaps/issues:
   - OPEN: remove `Bassam Lab Root CA` from Windows trust store at end of Phase 1 (certlm.msc)
   - PARKED — 3 program days out: AWS FREE plan → upgrade to Paid + $50 Budgets alarm BEFORE Day 13
 Next: Day 11 — Hardening (CIS Ubuntu subset, sshd hardening, UFW/iptables, fail2ban, auditd intro). Ship: hardening evidence pack with before/after audit output. Thread: the whole day — CC6.1/CC6.6/CC7.1. THEN Day 12: Agent 1 (MCP server health monitor) + Checkpoint 1.
+
+PROGRESS SNAPSHOT — Day 12 (2026-08-16)
+Status: partial — Agent 1 COMPLETE, Checkpoint 1 NOT YET TAKEN
+Shipped:
+  - Agent 1 (MCP Server Health Monitor) built and wired: claude mcp list → ✔ Connected
+  - Three-layer architecture: root-owned bash observer + scoped NOPASSWD sudoers + unprivileged Python interpreter
+  - ACCEPTANCE MET: 3/3 seeded misconfigurations detected (rogue SUID, world-writable root file, blanket NOPASSWD:ALL), each mapped to its CIS item
+  - Demo transcript: model called run_audit (did not shell out), re-ranked failures by realistic exploitability rather than severity label, surfaced an un-encoded second-order risk (writable parent dir → binary replacement), honoured scope_note
+  - day-12-agent1-mcp.md + agents/health-monitor/ + SUMMARY Day-12 append
+Concepts banked:
+  - An MCP server is a FILE, not a daemon — spawned as a child process, stdio/JSON-RPC, no port, lifetime = session (verified with ps)
+  - Tool-surface design IS least privilege: no run_command (that's a shell), no fix_finding in v1 (write ≠ read), no steerable arguments
+  - PRINCIPLE: evidence from deterministic tooling, interpretation by the model — never the reverse
+  - NOPASSWD safety depends on the target being IMMUTABLE to the grantee (root:root 755 = execute-not-modify)
+  - Keep tool output dumb; attach meaning in code the model can't influence
+  - subprocess list form, never shell=True; encode scope humility in the data structure
+  - PEP 668 / venv discipline; pin SDK major versions (mcp 1.29.0 under a <2 pin)
+Gaps/issues:
+  - CHECKPOINT 1 OUTSTANDING: practical task + 5 interview questions + artifact audit + 15-min role-play interview. Take it rested — a checkpoint taken tired measures fatigue.
+  - Recall Q1/Q2 this session ~7/10, 6/10: precision on "who picked the checks" and on separating filter-proven from ban-unproven
+  - VERIFY seeded faults removed (commands above)
+  - OPEN: remove `Bassam Lab Root CA` from Windows trust store at end of Phase 1 (certlm.msc)
+  - BLOCKING FOR DAY 13: AWS account still on FREE plan → upgrade to Paid + set $50 Budgets alarm. Day 13 enables GuardDuty/Security Hub/Config on day one.
+Next: CHECKPOINT 1, then Day 13 — AWS account foundations (requires the Paid upgrade first).
