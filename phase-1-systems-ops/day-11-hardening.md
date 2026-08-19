@@ -214,7 +214,76 @@ onto a system you depend on.
 
 ## Artifacts
 - `day-11-hardening/cis-audit.sh` — 12-check audit script (shellcheck-clean)
-- `day-11-hardening/audit-before.txt` / `audit-after.txt` — evidence pair
+- `day-11-hardening/audit-after.txt` — evidence
 - `day-11-hardening/sshd_config.hardened` — reference config, syntax-validated
 - `day-11-hardening/jail.local` — fail2ban configuration
 - `day-11-hardening/ufw-status.txt` — firewall ruleset
+
+---
+
+# AMENDMENT — 2026-08-18 (added during Checkpoint 1, Day 12)
+
+Two claims in this document were found to be inaccurate. Both are corrected here
+rather than silently edited above, so the correction itself is part of the record.
+
+## Correction 1 — the `nginx-tokens` check was defective; 12/12 overstated the result
+
+**What was claimed:** a 12/12 PASS on the CIS-subset audit, including
+`nginx hides version (server_tokens off)`.
+
+**What was actually true:** that check ran
+```bash
+sudo grep -rq 'server_tokens off' /etc/nginx/
+```
+which searches the **entire file tree** under `/etc/nginx/`. During Checkpoint 1 a
+fault was seeded by removing `server_tokens off;` from the live site config while
+leaving a backup file (`lab.cp1-backup`) in the same directory. **The check
+continued to PASS while the live server disclosed `nginx/1.28.3 (Ubuntu)` in its
+response header.** A dead backup file satisfied the test.
+
+The defect was surfaced by Agent 1 (Day 12) during the checkpoint practical, which
+compared the audit's PASS against a live `curl -I` and flagged the contradiction.
+
+**Root cause — the generalisable lesson:**
+
+> The check tested **configuration text**. It should have tested **observable
+> effect**. A config file records what someone *intended*; a response header
+> records what the system *does*. Where those can diverge — an unloaded config, a
+> backup file, an override later in the include chain, a service not reloaded —
+> always test the effect.
+
+**Remediation.** A replacement check was added that queries the live response:
+```bash
+chk "nginx-no-version" \
+  "! curl -sk -I https://127.0.0.1:8443/ 2>/dev/null | grep -qi '^server:.*nginx/[0-9]'" \
+  "curl -sk -I https://127.0.0.1:8443/ 2>/dev/null | grep -i '^server:'"
+```
+A second gap found at the same time — no check verified that firewall rules matched
+the intended posture — was closed by a `ufw-scope` check asserting that only
+8080/8443 are open.
+
+Both checks were verified by **re-seeding the fault conditions and confirming they
+FAIL**, then restoring and confirming a clean run. A check that has only ever
+passed is unverified.
+
+**Revised claim for this day:** 11 of 12 checks were sound. One tested the wrong
+thing and produced a false PASS. The audit now runs 13 checks.
+
+## Correction 2 — "before/after evidence pair" was the wrong description
+
+This document referred to `audit-after.txt` as an evidence.
+**`cis-audit.sh` did not exist until after the hardening work**, so no
+"before" run of that script was ever possible, and `audit-before.txt` was never
+created.
+
+What actually exists:
+- a **documented baseline** in prose (Section 1) — observations recorded before
+  hardening: no ufw, no fail2ban, one unowned SUID file
+- an **after** run of a tool written later
+
+That is a legitimate record, but it is not a same-instrument before/after
+comparison and should not be described as one. No before-file has been generated
+retrospectively; manufacturing one would be fabricating evidence.
+
+**From Day 12 onward:** where a before/after pair is claimed, the measuring tool
+must exist before the change is made.
