@@ -493,3 +493,41 @@ Pydantic return models generate the JSON schema automatically. The docstring **i
 - **Encode scope humility in the data structure** (`scope_note`), so the model cannot omit it.
 - **PEP 668:** Debian/Ubuntu refuse system-wide pip installs because pip and apt both manage `/usr/lib/python3`. A venv is the sanctioned path. `python3-venv` is a separate apt package.
 - **Suppressing command output hides failures** — an `apt install ... 2>/dev/null >/dev/null` concealed a failing post-install and left dpkg stuck for days.
+
+---
+
+## AWS foundations (added Day 13)
+
+| Command | What it does | When you reach for it |
+|---|---|---|
+| `aws sts get-caller-identity` | Who am I acting as right now | **First command in any AWS session** — confirms identity before anything destructive |
+| `aws freetier get-account-plan-state` | Account plan type, status, remaining credits | Settling "am I on free or paid" definitively instead of guessing from the console |
+| `aws configure` | Write credentials + region to `~/.aws/` | Initial CLI setup. NOTE: stores the secret in PLAINTEXT |
+| `aws guardduty list-detectors` | Confirm GuardDuty is on in this region | Verification, not console screenshots |
+| `aws configservice describe-configuration-recorder-status` | Is the recorder actually RUNNING | A recorder can exist and be STOPPED — this is the check that matters |
+| `aws configservice list-configuration-recorders` | Recorder name + `recordingScope` | Distinguishes your own recorder (PAID) from Security Hub's service-linked one |
+| `aws configservice describe-delivery-channels` | Where Config writes its data | Finding the S3 bucket (persists after teardown, costs money) |
+| `aws configservice describe-delivery-channel-status` | Has delivery actually SUCCEEDED | Empty objects = configured but never delivered |
+| `aws securityhub describe-hub` | Is Security Hub enabled | Basic enablement check |
+| `aws securityhub describe-standards` | What standards EXIST | Browsing options — not your account's state |
+| `aws securityhub get-enabled-standards` | What standards are ON in your account | **The one that answers "what am I actually running"** |
+
+Note the CLI subcommand group is `configservice`, not `config`.
+
+## Day 13 — AWS account foundations & detection
+
+- **An AWS account is a building, not a login** — a self-contained isolation boundary and a single billing boundary. Isolation is why lab work never happens in a client or production account.
+- **What makes root different from any other admin: every other identity can be restricted by policy; root cannot.** No rule can be written to stop root doing anything, including closing the account. Root is the deed, not a key — it goes in a safe.
+- **Since what root can DO can't be limited, the only lever is making it hard to get INTO.** Hence MFA, and hence two devices.
+- **Phishing-resistant MFA:** a six-digit code is just a number and doesn't know which site it's typed into — an attacker can proxy a fake login and relay it live. A passkey checks which domain is asking and refuses anything else. Nothing typed, nothing to relay.
+- **A recovery path is only as strong as everything it depends on.** Backing the MFA seed to Google Drive makes AWS root access dependent on Google account security. Legitimate trade; map the whole chain.
+- **Long-lived access keys don't expire** — a key leaked in 2023 still works. Temporary credentials (STS / Identity Center) are a hotel keycard that stops working at checkout.
+- **DETECTION BEFORE INFRASTRUCTURE.** All three services only see forward. Enable them after building and they can say nothing about how anything got that way. Day-1 lesson at a new layer.
+- **THE THREE-WAY SPLIT — memorise for interviews:** GuardDuty watches BEHAVIOUR ("is something acting maliciously right now?"). Config holds STATE + HISTORY ("what is this, and what was it last Tuesday?"). Security Hub CSPM checks against a STANDARD ("where does this fall short?"). Three different questions — not redundancy.
+- **Only Config can answer questions about the past.** "Prove this bucket wasn't public during July" is a Config question, even though the asker is an auditor and the word 'compliance' is in the air. Security Hub has no memory.
+- **Config recording vs Config rules are different things.** The recorder photographs and judges nothing; rules evaluate. Recording needs no rules. Security Hub creates service-linked rules automatically and those are FREE — you pay for the configuration items they read.
+- **A benchmark's value is that YOU didn't pick the checks.** Day 11's self-authored 12/12 was weak evidence ("who picked the 12?"). CIS AWS Foundations is published, versioned, consensus-built — so the score means something to a third party.
+- **Cost model: security checks = resources × applicable controls.** Empty account = pennies. Identical controls shared across standards are billed once.
+- **Compute you forget to delete, not security tooling, destroys a budget.** A forgotten NAT Gateway (~$33/mo) costs 130× Security Hub.
+- **Check the pricing model BEFORE enabling a service** — identify which dimension scales with your workload and size it against the budget. That judgment is the engineer's job, not finance's.
+- **Configured ≠ working.** Empty `configSnapshotDeliveryInfo` / `configHistoryDeliveryInfo` objects mean nothing has been delivered yet. Same class as a fail2ban filter that matched but whose ban action was never exercised.

@@ -222,3 +222,37 @@ Gaps/issues:
   - OPEN: remove `Bassam Lab Root CA` from Windows trust store at end of Phase 1 (certlm.msc)
   - BLOCKING FOR DAY 13: AWS account still on FREE plan → upgrade to Paid + set $50 Budgets alarm. Day 13 enables GuardDuty/Security Hub/Config on day one.
 Next: CHECKPOINT 1, then Day 13 — AWS account foundations (requires the Paid upgrade first).
+
+PROGRESS SNAPSHOT — Day 13 (2026-08-23)
+Status: complete
+Shipped:
+  - Root secured: 2 MFA devices (iPhone passkey + Google Authenticator), both sign-in tested
+  - Named IAM identity `devsecops90` with MFA + account alias; root retired from daily use
+  - AWS CLI v2 installed UNSCAFFOLDED, region eu-central-1
+  - GuardDuty enabled (detector confirmed)
+  - AWS Config: own recorder, all resource types + global, recordingScope PAID, "recording": true, lastStatus SUCCESS
+  - Security Hub CSPM: FSBP v1.0.0 + CIS AWS Foundations v1.2.0, both READY
+  - $50/month Budgets alarm at 50/80/100% thresholds
+  - day-13-account-setup.md + SUMMARY Day-13 append
+Concepts banked:
+  - Root differs from any admin because every OTHER identity can be restricted by policy; root cannot. Can't limit what it does → only lever is making it hard to get into.
+  - Phishing-resistant MFA: a code doesn't know which site it's typed into; a passkey checks the domain and refuses. Nothing typed = nothing to relay.
+  - A recovery path is only as strong as everything it depends on (MFA seed on Drive → AWS root now depends on Google account security; accepted, documented).
+  - DETECTION BEFORE INFRASTRUCTURE — all three services only see forward.
+  - Three-way split: GuardDuty = BEHAVIOUR, Config = STATE + HISTORY, Security Hub = STANDARD. Only Config answers questions about the past.
+  - A benchmark's value is that you didn't pick the checks — closes the Day-11 "who picked the 12?" objection.
+  - Configured ≠ working (delivery channel exists, has delivered nothing yet).
+Assessment:
+  - Recall (Day 12): Q1 half, Q2 circular, Q3 no mechanism — still reaching for outcome over mechanism
+  - Interview Q1 WRONG (chose Security Hub for a question about July — Config is the only one with history), Q2 correct and well-stated, Q3 not understood until rephrased
+  - Spine rep: STRUCTURE improved (parts counted, boundary delivered) but services INVERTED — called GuardDuty the compliance engine. Third service-description drift today. Anchor on the QUESTION each answers, not the name.
+  - Cost-check judgment before enabling Security Hub: correct professional instinct, noted as such
+  - Account ID redaction was inconsistent across pastes — make it uniform
+Gaps/issues:
+  - [ ] Config delivery to S3 still shows empty objects — re-run describe-delivery-channel-status, expect SUCCESS + timestamp
+  - [ ] AdministratorAccess is a documented temporary exception → narrowed Days 14-15
+  - [ ] Long-lived access key in ~/.aws/credentials (plaintext) → replaced by STS temporary credentials Day 15
+  - [ ] CIS v1.2.0 dates from 2018; v3.0.0/v5.0.0 available — revisit at Day 30 findings review
+  - [ ] GuardDuty + Security Hub trials expire ~Day 43 — review actual charges together
+  - [ ] OPEN since Phase 1: remove `Bassam Lab Root CA` from Windows trust store (certlm.msc)
+Next: Day 14 — IAM I. Policy JSON anatomy, evaluation logic (explicit deny always wins, implicit deny by default, permission boundaries as a cap), least privilege in practice. Lab: author and test a least-privilege policy, then prove the denied actions are actually denied.
