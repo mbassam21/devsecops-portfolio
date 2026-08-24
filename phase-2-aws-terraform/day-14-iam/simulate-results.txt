@@ -1,0 +1,13 @@
+---------------------------------------------------
+|             SimulatePrincipalPolicy             |
++--------------------------------+----------------+
+|  s3:ListAllMyBuckets           |  allowed       |
+|  iam:ListUsers                 |  allowed       |
+|  ec2:DescribeInstances         |  allowed       |
+|  guardduty:ListDetectors       |  allowed       |
+|  s3:GetObject                  |  explicitDeny  |
+|  secretsmanager:GetSecretValue |  explicitDeny  |
+|  lambda:GetFunction            |  explicitDeny  |
+|  iam:CreateUser                |  implicitDeny  |
+|  ec2:TerminateInstances        |  implicitDeny  |
++--------------------------------+----------------+

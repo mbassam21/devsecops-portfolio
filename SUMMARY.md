@@ -531,3 +531,51 @@ Note the CLI subcommand group is `configservice`, not `config`.
 - **Compute you forget to delete, not security tooling, destroys a budget.** A forgotten NAT Gateway (~$33/mo) costs 130× Security Hub.
 - **Check the pricing model BEFORE enabling a service** — identify which dimension scales with your workload and size it against the budget. That judgment is the engineer's job, not finance's.
 - **Configured ≠ working.** Empty `configSnapshotDeliveryInfo` / `configHistoryDeliveryInfo` objects mean nothing has been delivered yet. Same class as a fail2ban filter that matched but whose ban action was never exercised.
+
+---
+
+## IAM (added Day 14)
+
+| Command | What it does | When you reach for it |
+|---|---|---|
+| `ACCT=$(aws sts get-caller-identity --query Account --output text)` | Capture account ID into a variable | **Muscle memory.** Keeps account IDs out of committed scripts and makes commands portable |
+| `aws iam get-policy --policy-arn <arn> --query 'Policy.DefaultVersionId'` | Which version of a policy is live | Managed policies are versioned; you need this before fetching |
+| `aws iam get-policy-version --policy-arn <arn> --version-id vN --query 'PolicyVersion.Document'` | The actual JSON | **Read AWS managed policies before writing your own** |
+| `aws iam create-policy --policy-name X --policy-document file://p.json` | Create a customer-managed policy | Note `file://` prefix — required |
+| `aws iam attach-user-policy --user-name U --policy-arn A` | Attach policy to user | |
+| `aws iam list-attached-user-policies --user-name U` | What is attached | **Proves ONLY your policy is present** — a test with others attached proves nothing |
+| `aws iam simulate-principal-policy --policy-source-arn <arn> --action-names A B C` | What WOULD happen, without doing it | Testing permissions without the target's credentials |
+| `--query 'EvaluationResults[*].[EvalActionName,EvalDecision]' --output table` | Readable simulate output | |
+| `MatchedStatements` in simulate output | WHICH policy produced the decision | Finding where a deny actually lives |
+| `python3 -m json.tool file.json` | Validate + pretty-print JSON | Before every create-policy |
+
+**Policy skeleton:**
+```
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "Label", "Effect": "Allow|Deny", "Action": [...], "Resource": "...", "Condition": {...} }
+  ]
+}
+```
+
+**MFA condition:** `"Condition": { "Bool": { "aws:MultiFactorAuthPresent": "true" } }`
+
+## Day 14 — IAM I: policy anatomy & evaluation logic
+
+- **A policy reads: allow or deny / this operation / on this thing / under these circumstances.** Effect, Action, Resource, Condition.
+- **`"Version": "2012-10-17"` is a POLICY LANGUAGE version, not a date you pick.** Always use it; the older 2008-10-17 lacks policy variables.
+- **THE BOUNCER WITH THREE LISTS:** (1) ban list = explicit deny, beats everything, no override exists. (2) guest list = you need an explicit allow; silence means no (implicit deny). (3) capacity limit = permission boundary, caps what any policy can grant.
+- **Why deny beats allow:** one team can write a rule nobody can accidentally undo. Why default-deny: a service AWS launches next year is forbidden until someone decides otherwise — new capabilities arrive LOCKED.
+- **THE READ-ONLY TRAP: AWS naming does not distinguish reading CONFIGURATION from reading DATA.** `s3:GetObject` returns file contents. `secretsmanager:GetSecretValue` returns the secret. `lambda:GetFunction` returns a code download link. `kms:Decrypt` returns plaintext. All are "Get".
+- **Write-side trap:** Put, Update, Attach, Set, Tag all modify without saying "write". `iam:AttachUserPolicy` grants permissions.
+- **Wildcard rule: wildcard where the whole namespace is safe, ENUMERATE where it isn't.** `iam:Get*` is fine (all metadata). `s3:Get*` is not — it sweeps in GetObject.
+- **explicitDeny vs implicitDeny — same outcome, different mechanism.** Implicit is a DEFAULT and can be overridden by a later permissive policy. Explicit is a RULE and cannot. **A deny statement is a guarantee that survives other people's decisions.**
+- **This is why denies aren't redundant:** someone attaches AmazonS3ReadOnlyAccess six months later for an unrelated reason; without your deny block the assessor can now read every object in every bucket, and the change looked innocuous.
+- **Where explicit deny STOPS working (the boundary):** it doesn't cover the account root user in all contexts, it adds policy-size and complexity cost, and an over-broad deny blocks legitimate work in ways that are painful to debug precisely because they can't be overridden.
+- **When someone is denied, first determine WHICH KIND.** Adding an allow fixes implicit deny and does nothing for explicit deny. The deny may not even be on the user — check SCPs, permission boundaries, and resource policies. `MatchedStatements` tells you which policy decided.
+- **Identity-based vs resource-based is about WHERE THE POLICY ATTACHES, not authentication vs authorization.** Identity-based: on a user/group/role, "this identity may do X". Resource-based: on the bucket/key/queue, has a `Principal` field, "these principals may do X to me".
+- **Only a resource-based policy can grant access to a principal in ANOTHER AWS account** — you don't control their identities, so your identity policy can't authorize them. This is the mechanism behind all cross-account access.
+- **Service prefixes matter:** `sts:GetSessionToken` is not `iam:GetSessionToken`. A wildcard on one service never catches another's actions.
+- **AWS's own `SecurityAudit` managed policy contains no deny statements** — read managed policies before writing your own, and know what they leave out.
+- **CERT NOTE:** IAM evaluation logic is among the most-tested topics on both SCS-C03 (Security Specialty) and SAA-C03 (Solutions Architect Associate).

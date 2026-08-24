@@ -256,3 +256,32 @@ Gaps/issues:
   - [ ] GuardDuty + Security Hub trials expire ~Day 43 — review actual charges together
   - [ ] OPEN since Phase 1: remove `Bassam Lab Root CA` from Windows trust store (certlm.msc)
 Next: Day 14 — IAM I. Policy JSON anatomy, evaluation logic (explicit deny always wins, implicit deny by default, permission boundaries as a cap), least privilege in practice. Lab: author and test a least-privilege policy, then prove the denied actions are actually denied.
+
+PROGRESS SNAPSHOT — Day 14 (2026-08-25)
+Status: complete
+Shipped:
+  - AdwenAssessorReadOnly customer-managed policy: allows security-configuration read across IAM/S3/EC2/CloudTrail/Config/GuardDuty/SecurityHub/KMS; explicitly DENIES all data-plane reads
+  - assessor-test user with single attached policy, verified via list-attached-user-policies
+  - simulate-principal-policy proof: 4 allowed, 3 explicitDeny, 2 implicitDeny — all three decision types demonstrated in one output
+  - day-14-iam-policies.md + assessor-policy.json + simulate-results.txt + SUMMARY Day-14 append
+Concepts banked:
+  - Bouncer with three lists: explicit deny (beats everything) → explicit allow required (silence = no) → permission boundary (caps everything)
+  - THE READ-ONLY TRAP: AWS naming doesn't distinguish reading CONFIG from reading DATA. GetObject/GetSecretValue/GetFunction/Decrypt all say "Get".
+  - Wildcard rule: wildcard where the namespace is safe (iam:Get*), ENUMERATE where it isn't (never s3:Get*)
+  - Implicit deny is a DEFAULT and is overridable; explicit deny is a RULE and is not. A deny statement is a guarantee that survives other people's decisions.
+  - Identity- vs resource-based is about WHERE IT ATTACHES. Only resource-based can grant cross-account access (has a Principal field).
+  - ACCT=$(aws sts get-caller-identity --query Account --output text) — keeps account IDs out of committed scripts
+Assessment:
+  - Recall: Q1 8/10, Q2 9/10 (mechanism stated as mechanism), Q3 6/10 (gave danger, not the "documented contradiction" reasoning)
+  - Interview Q1 6/10 — right method, then jumped to "add an allow" which only works for implicit deny; missed that the deny may live in an SCP/boundary/resource policy
+  - Interview Q2 7/10 — wildcard-grants-future-actions correct; invented iam:GetSessionToken (real one is sts:); stated the tradeoff backwards (it was accepted deliberately, not an oversight)
+  - Interview Q3 4/10 — honestly flagged as a guess. Attached "permanent unoverridable blocking" (that's explicit deny) to resource-based policies.
+  - Spine rep 7/10 — BEST STRUCTURE YET. Parts counted, claim direct, mechanism correct. Boundary was an evidence argument ("proves to an auditor") rather than where the control STOPS.
+  - Pattern to keep working: boundary = where it fails/costs, not why it's good.
+Gaps/issues:
+  - [ ] Policy proven by SIMULATION only — configured vs working, again. Day 15 assume-role gives a clean way to test as another identity without long-lived keys.
+  - [ ] MFA condition drafted, not applied (stretch)
+  - [ ] Delete assessor-test user when Phase 2 IAM work concludes
+  - [ ] Config delivery channel — still needs a SUCCESS check (carried from Day 13)
+  - [ ] AdministratorAccess narrowing + long-lived key replacement — Day 15
+Next: Day 15 — IAM II. STS assume-role, temporary credentials, cross-account access, MFA enforcement, Access Analyzer. Lab: build a deployer role, assume it via CLI, and use it to properly test the Day-14 assessor policy.
