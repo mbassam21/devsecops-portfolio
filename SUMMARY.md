@@ -579,3 +579,47 @@ Note the CLI subcommand group is `configservice`, not `config`.
 - **Service prefixes matter:** `sts:GetSessionToken` is not `iam:GetSessionToken`. A wildcard on one service never catches another's actions.
 - **AWS's own `SecurityAudit` managed policy contains no deny statements** — read managed policies before writing your own, and know what they leave out.
 - **CERT NOTE:** IAM evaluation logic is among the most-tested topics on both SCS-C03 (Security Specialty) and SAA-C03 (Solutions Architect Associate).
+
+---
+
+## STS / assume-role (added Day 15)
+
+| Command | What it does | When you reach for it |
+|---|---|---|
+| `aws iam create-role --role-name R --assume-role-policy-document file://trust.json` | Create a role; the trust policy is passed AT CREATION | Note: `--assume-role-policy-document` IS the trust policy |
+| `--max-session-duration 3600` | Cap session length on the role | Default 3600, max 43200 (12h). Shorter = smaller stolen-session window |
+| `aws iam put-role-policy --role-name R --policy-name P --policy-document file://p.json` | Attach an INLINE policy (lives and dies with the role) | Role-specific rules nothing else should reuse |
+| `aws iam attach-role-policy` | Attach a MANAGED policy (standalone, reusable) | Shared policies |
+| `aws sts assume-role --role-arn A --role-session-name N` | Put the uniform on | `--role-session-name` is REQUIRED and lands in CloudTrail |
+| `aws sts get-caller-identity` | Confirm which identity you're currently acting as | After assuming; expect `arn:aws:sts::...:assumed-role/ROLE/SESSION` |
+| `aws iam list-access-keys --user-name U` | How many long-lived keys exist and their age | 90-day rotation standard |
+| `aws <cmd> --profile deployer` | Use a named profile that assumes automatically | Stops you handling credentials by hand |
+
+**Named profile in `~/.aws/config`:**
+```
+[profile deployer]
+role_arn = arn:aws:iam::ACCT:role/ROLE-NAME
+source_profile = default
+role_session_name = bassam-cli
+duration_seconds = 3600
+region = eu-central-1
+```
+
+**Heredoc gotcha:** `<<EOF` expands `${VARS}`; `<<'EOF'` does not. Quoting when you need expansion silently produces a broken policy.
+
+## Day 15 — IAM II: assume-role & temporary credentials
+
+- **A role is a UNIFORM IN A CUPBOARD, not a person.** It has no credentials of its own. Anyone on the approved list wears it for a limited time, then hands it back.
+- **STS returns THREE things** — access key, secret key, and a SESSION TOKEN. A permanent key has only two parts. **Anything with a session token expires.**
+- **CREDENTIAL PREFIXES:** `AKIA` = long-lived key (works until revoked) · `ASIA` = temporary (expires) · `AIDA` = user ID · `AROA` = role ID. In a leaked-key alert this tells you whether to panic.
+- **A ROLE HAS TWO POLICIES.** Trust policy = WHO may wear it (resource-based, has `Principal`). Permissions policy = WHAT it can do (identity-based). **"Cannot assume role" → trust policy. "Assumed then AccessDenied" → permissions policy.** The error tells you which document to open.
+- **`arn:aws:iam::ACCT:root` in a trust policy does NOT mean the root user** — it means "this account is trusted", which DELEGATES the decision to the assumers' own identity policies. Enterprise pattern: trust policy stays stable, team membership changes elsewhere.
+- **Cross-account assume-role needs BOTH sides:** trust policy on the role AND identity policy on the assumer.
+- **S3 policies need TWO resource entries:** `arn:aws:s3:::bucket` (for ListBucket, acts on the bucket) and `arn:aws:s3:::bucket/*` (for GetObject, acts on objects). Bucket and objects are DIFFERENT resources. Omitting `/*` is one of the most common S3 policy bugs.
+- **`Deny iam:*` on a deployment role blocks PRIVILEGE ESCALATION** — a role that can modify IAM can attach AdministratorAccess to itself. `Deny sts:AssumeRole` additionally blocks ROLE CHAINING (hopping to a more powerful role).
+- **AWS states the deny TYPE in the error text:** "with an explicit deny in an identity-based policy". Explicit → no allow will ever fix it, someone must remove the deny. Implicit → an allow will fix it.
+- **`--role-session-name` appears in CloudTrail against every action** — it must identify a human or a pipeline run, never "session1".
+- **YOU CANNOT DELETE THE CREDENTIAL THE REPLACEMENT DEPENDS ON.** A `source_profile = default` assume-role profile still uses the long-lived key. Removing it breaks the thing meant to replace it. Only FEDERATION (Identity Center, AD, Okta) removes permanent keys entirely.
+- **Revoking a live session:** attach an inline policy denying all actions where `aws:TokenIssueTime` is earlier than now (console: "Revoke active sessions"). Kills existing sessions, leaves the role usable.
+- **LIMITS OF ASSUME-ROLE:** the chain must start somewhere · an hour is ample for an automated attacker (expiry limits PERSISTENCE, not DAMAGE) · session credentials leak like any others (CI logs, env vars) · debugging is harder because three policies must be checked.
+- **Expiry limits persistence, not damage.** Within the window an attacker has everything the role has — including delete on deployment artifacts, which is a real outage.

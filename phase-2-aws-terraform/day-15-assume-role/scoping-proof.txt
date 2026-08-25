@@ -1,0 +1,18 @@
+=== Scoping proof: devsecops90-deployer ===
+Date: 2026-08-26T00:04:32+02:00
+
+--- Identity while assuming the role ---
+{
+    "UserId": "<id>:bassam-cli",
+    "Account": "<acct>",
+    "Arn": "arn:aws:sts::<acct>:assumed-role/devsecops90-deployer/bassam-cli"
+}
+
+--- DENIED: iam:ListUsers (not in permissions policy, explicitly denied) ---
+
+aws: [ERROR]: An error occurred (AccessDenied) when calling the ListUsers operation: User: arn:aws:sts::<acct>:assumed-role/devsecops90-deployer/bassam-cli is not authorized to perform: iam:ListUsers on resource: arn:aws:iam::<acct>:user/ with an explicit deny in an identity-based policy
+
+--- ALLOWED: ecr:DescribeRepositories (granted by ECRPushPull statement) ---
+{
+    "repositories": []
+}

@@ -285,3 +285,35 @@ Gaps/issues:
   - [ ] Config delivery channel — still needs a SUCCESS check (carried from Day 13)
   - [ ] AdministratorAccess narrowing + long-lived key replacement — Day 15
 Next: Day 15 — IAM II. STS assume-role, temporary credentials, cross-account access, MFA enforcement, Access Analyzer. Lab: build a deployer role, assume it via CLI, and use it to properly test the Day-14 assessor policy.
+
+PROGRESS SNAPSHOT — Day 15 (2026-08-25)
+Status: complete
+Shipped:
+  - devsecops90-deployer role: trust policy naming the user, inline permissions scoped to S3 (devsecops90-* prefix) + ECR, DenyPrivilegeEscalation on iam:* and sts:AssumeRole
+  - Assumed via CLI; identity confirmed as arn:aws:sts::ACCT:assumed-role/devsecops90-deployer/bassam-day15-manual, 1h expiry captured
+  - Named [profile deployer] in ~/.aws/config — CLI assumes and refreshes transparently
+  - Scoping proven both ways: iam:ListUsers → AccessDenied "with an explicit deny in an identity-based policy"; ecr describe-repositories → success
+  - day-15-iam-assume-role.md + trust-policy.json + deployer-permissions.json + scoping-proof.txt + SUMMARY Day-15 append
+Concepts banked:
+  - A role is a UNIFORM IN A CUPBOARD — no credentials of its own; worn temporarily by anyone on the approved list
+  - Two policies, two questions: trust = WHO may wear it (has Principal); permissions = WHAT it can do. The error text tells you which to open.
+  - `:root` in a trust policy = "this account is trusted", DELEGATING the decision to assumers' identity policies. Enterprise pattern.
+  - Credential prefixes: AKIA (permanent) / ASIA (temporary) / AIDA (user) / AROA (role)
+  - S3 policies need TWO resource entries — bucket and bucket/* are different resources
+  - Deny iam:* blocks self-escalation; Deny sts:AssumeRole blocks role chaining
+  - You cannot delete the credential the replacement depends on
+  - Expiry limits PERSISTENCE, not DAMAGE
+Assessment:
+  - Recall: 3/3 correct, one line each, right mechanisms — fastest recall of the programme so far
+  - Interview Q1 6/10 — answered "what limits them", skipped "what an attacker can do". Two-part question, one part delivered.
+  - Interview Q2 3/10 — :root misread as the root user; missed that it delegates the decision to identity policies
+  - Interview Q3 5/10 — gave the effect (can't create users), not the reason (survives a future permissive policy)
+  - Spine rep 6/10 — structure held; hedged with "to some extent" when REJECTING the premise was the strongest move; boundary honestly blank though one limit had been met minutes earlier
+  - CREDENTIAL HYGIENE INCIDENT: full assume-role output pasted with AccessKeyId and SessionToken unredacted (secret withheld, so not usable). Session expired 1h later with no action needed — an accidental live demonstration of the day's thesis. Rule adopted: everything inside the Credentials object is secret.
+Gaps/issues:
+  - [ ] Criterion 7 AMENDED, not met: long-lived key retained as the root of the assume-role chain. Documented exception, 90-day rotation standard, IAM Identity Center is the fix (~Day 30).
+  - [ ] MFA condition on trust policy — stretch, not applied
+  - [ ] Delete assessor-test user at end of Phase 2 IAM work
+  - [ ] Config delivery channel SUCCESS check — carried from Day 13, still open
+  - ENTERPRISE TRACK ADDED per learner request: multi-account (Organizations, SCPs), federated identity (AD/Okta/Entra), hybrid (on-prem trust, VPN/Direct Connect, split-horizon DNS), and change management to be woven in from here.
+Next: Day 16 — EC2. AMIs, user data, launch templates, IMDSv2, SSM Session Manager. Lab: launch an instance reachable via SSM only, with no SSH port open. First day with billable compute — teardown checklist applies.
